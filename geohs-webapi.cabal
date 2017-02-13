@@ -25,11 +25,12 @@ library
     , GeoHS.WebAPI.Maps.Layer
     , GeoHS.WebAPI.Maps.Tile
     , GeoHS.WebAPI.Maps.API
-  -- other-modules:       
+
+    , GeoHS.WebAPI.GeneratePS
   build-depends:
       base >=4.9 && <4.10
     , lens >=4.14 && <4.15
-    , purescript-bridge >=0.8 && <0.9
+    , purescript-bridge >= 0.10.1 && <0.11
     , servant-purescript >=0.6 && <0.7
     , spatial-reference >=0.1 && <0.2
     , aeson >=0.11 && <0.12
@@ -60,11 +61,6 @@ executable geohs-purescript
   build-depends:
       base
     , geohs-webapi
-    , optparse-applicative
-    , servant-purescript
-    , purescript-bridge
-    , lens
-    , spatial-reference
   ghc-options:
     -Wall
     -fwarn-incomplete-patterns

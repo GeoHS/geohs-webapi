@@ -11,6 +11,7 @@ mkDerivation {
   src = ./.;
   isLibrary = true;
   isExecutable = true;
+  hyperlinkSource = false;
   libraryHaskellDepends = [
     aeson base base64-bytestring bytestring geohs-geometry
     http-api-data lens neat-interpolation purescript-bridge servant
