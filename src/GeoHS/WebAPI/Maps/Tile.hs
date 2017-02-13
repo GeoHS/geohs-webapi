@@ -12,19 +12,15 @@ module GeoHS.WebAPI.Maps.Tile where
 
 import GeoHS.Geometry
 import Data.Aeson
-import GHC.Generics
+import GHC.Generics (Generic)
 import Data.ByteString.Char8 (ByteString)
 import Data.Swagger
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Base64 as B64
 import Data.Bits (bit)
 import Control.Lens hiding (Zoom, transform)
-import SpatialReference
 
 type Zoom = Int
-
-type WGS84 = Epsg 4326
-type SphericalMercator = Epsg 3857
 
 newtype RGBA8 = RGBA8 ByteString
   deriving (Eq, Ord, Show, Generic)
@@ -59,120 +55,80 @@ data Tile = Tile
   } deriving (Generic, ToJSON, FromJSON, ToSchema)
 makeFields ''Tile
 
-instance HasWidth Tile Int where
-  width = size._1
+instance HasWidth  Tile Int where width  = size._1
+instance HasHeight Tile Int where height = size._2
 
-instance HasHeight Tile Int where
-  height = size._2
-
-
-data BoundingBox crs =
-  BoundingBox {
-    boundingBoxWestNorth :: !(Coords crs)
-  , boundingBoxEastSouth :: !(Coords crs)
-  } deriving (Eq, Ord, Show)
-makeFields ''BoundingBox
-
-bbox :: BoundingBox crs
-bbox = BoundingBox (Coords 0 0) (Coords 0 0)
-
-
-instance HasNorth (BoundingBox crs) Double where north = westNorth.lat
-instance HasSouth (BoundingBox crs) Double where south = eastSouth.lat
-instance HasWest (BoundingBox crs) Double where west = westNorth.lng
-instance HasEast (BoundingBox crs) Double where east = eastSouth.lng
-
-data TileMatrix crs = TileMatrix
+data TileMatrix = TileMatrix
   { tileMatrixTileWidth  :: !Int
   , tileMatrixTileHeight :: !Int
-  , tileMatrixExtent :: !(BoundingBox crs)
+  , tileMatrixBounds     :: !Bounds
   }
   deriving Show
 makeFields ''TileMatrix
 
+instance HasBounds (Tagged crs TileMatrix) (Tagged crs Bounds) where
+  bounds = taggedLens' bounds
+  {-# INLINE bounds #-}
 
-tileMatrix :: Int -> TileMatrix crs
-tileMatrix sz = TileMatrix sz sz bbox
+tileMatrix :: Int -> TileMatrix
+tileMatrix sz = TileMatrix sz sz emptyBounds
 
 
 class HasTileIndex crs where
-  fromTileIndex :: TileIndex -> Coords crs
-  toTileIndex :: Zoom -> Coords crs -> TileIndex
-
-class HasTransform crsFrom crsTo where
-  transform :: Coords crsFrom -> Coords crsTo
+  fromTileIndex :: TileIndex -> Tagged crs LatLng
+  toTileIndex :: Zoom -> Tagged crs LatLng -> TileIndex
 
 
+bboxSphericalMercator :: Tagged SphericalMercator Bounds
+bboxSphericalMercator = (Tagged emptyBounds)
+  & northWest .~ fromTileIndex (TileIndex 0 0 0)
+  & southEast .~ fromTileIndex (TileIndex 0 1 1)
 
-instance HasTransform WGS84 SphericalMercator where
-  transform (Coords _lng _lat) = Coords lng1 lat1
-    where
-      lng1 = _lng * originShift / 180
-      lat1 = (log (tan((90 + _lat) * pi / 360 )) / (pi / 180)) * originShift / 180
-
-instance HasTransform SphericalMercator WGS84 where
-  transform (Coords _lng _lat) = Coords lng1 lat1
-    where
-      lng1  = (_lng / originShift) * 180
-      lat1' = (_lat / originShift) * 180
-      lat1  = 180 / pi * (2 * atan ( exp ( lat1' * pi / 180) ) - pi / 2)
-
-originShift :: Double
-originShift = 2 * pi * 6378137 / 2
-
-bboxSphericalMercator :: BoundingBox SphericalMercator
-bboxSphericalMercator = BoundingBox
-  { boundingBoxWestNorth = fromTileIndex (TileIndex 0 0 0)
-  , boundingBoxEastSouth = fromTileIndex (TileIndex 0 1 1)
-  }
-
-tileMatrixSphericalMercator :: TileMatrix SphericalMercator
+tileMatrixSphericalMercator :: TileMatrix
 tileMatrixSphericalMercator = TileMatrix
   { tileMatrixTileWidth = 256
   , tileMatrixTileHeight = 256
-  , tileMatrixExtent = bboxSphericalMercator
+  , tileMatrixBounds = unTagged bboxSphericalMercator
   }
 
 instance HasTileIndex WGS84 where
-  fromTileIndex TileIndex{z,x,y} = Coords _lng _lat
+  fromTileIndex TileIndex{z,x,y} = Tagged $ lngLat _lng _lat
     where
       _lng  = fromIntegral x / pow2 z * 360 - 180
       _lat  = 180 / pi * atan(0.5 * (exp n - exp (-n)))
       n    = pi - 2 * pi * fromIntegral y / pow2 z
 
-  toTileIndex z (Coords _lng _lat) = TileIndex{z,x,y}
+  toTileIndex z cs = TileIndex{z,x,y}
     where
       x = truncate x'
       y = truncate y'
-      x' = (_lng + 180) / 360 * pow2 z
-      y' = (1 - log (tan (_lat * pi/180) + 1 / cos(_lat * pi/180)) / pi)
+      x' = (cs^.lng + 180) / 360 * pow2 z
+      y' = (1 - log (tan (cs^.lat * pi/180) + 1 / cos(cs^.lat * pi/180)) / pi)
          / 2 * pow2 z
 
 
-maxResolution :: TileMatrix crs -> Double
-maxResolution
-  TileMatrix { tileMatrixTileWidth  = fromIntegral -> tw
-             , tileMatrixTileHeight = fromIntegral -> th
-             , tileMatrixExtent = ext
-             } = max (bboxWidth ext / tw) (bboxHeight ext / th)
+maxResolution :: TileMatrix -> Double
+maxResolution tm =
+  max ((tm^.bounds.width) / (tm^.tileWidth.to fromIntegral))
+      ((tm^.bounds.height) / (tm^.tileHeight.to fromIntegral))
 
-resolutionForZoom :: TileMatrix crs -> Zoom -> Double
+resolutionForZoom :: TileMatrix -> Zoom -> Double
 resolutionForZoom  tm z = maxResolution tm / pow2 z
 
-resolutions :: TileMatrix crs -> [Double]
+resolutions :: TileMatrix -> [Double]
 resolutions tm = map (resolutionForZoom tm) [0..]
 
-fromTileIndexWith :: TileMatrix crs -> TileIndex -> Coords crs
-fromTileIndexWith tm TileIndex{z,x,y} = Coords col row
+fromTileIndexWith :: TileMatrix -> TileIndex -> LatLng
+fromTileIndexWith tm TileIndex{z,x,y} = lngLat col row
   where
-    col = tm^.extent.west + (fromIntegral (x * tm^.tileWidth) * res)
-    row = tm^.extent.north + (fromIntegral (y * tm^.tileHeight) * (-res))
+    col = tm^.bounds.west + (fromIntegral (x * tm^.tileWidth) * res)
+    row = tm^.bounds.north + (fromIntegral (y * tm^.tileHeight) * (-res))
     res = resolutionForZoom tm z
 
 data ReverseIntersectionPolicy = LowerTile | HigherTile
 
-toTileIndexWithPolicy :: ReverseIntersectionPolicy -> TileMatrix crs -> Zoom -> Coords crs -> TileIndex
-toTileIndexWithPolicy pol tm z (Coords _lng _lat) = TileIndex {z,x,y}
+toTileIndexWithPolicy :: ReverseIntersectionPolicy -> TileMatrix -> Zoom -> LatLng -> TileIndex
+toTileIndexWithPolicy pol tm z cs = TileIndex {z,x,y}
   where
     x = case pol of
       LowerTile -> ceiling x' - 1
@@ -184,49 +140,37 @@ toTileIndexWithPolicy pol tm z (Coords _lng _lat) = TileIndex {z,x,y}
     x' = fromIntegral x0' / fromIntegral (tm^.tileWidth) :: Double
     y' = fromIntegral y0' / fromIntegral (tm^.tileHeight) :: Double
 
-    x0' = floor ( (_lng - x0) / resolution + adjust ) :: Int
-    y0' = floor ( (y0   - _lat) / resolution - adjust ) :: Int
+    x0' = floor ( (cs^.lng - x0) / resolution + adjust ) :: Int
+    y0' = floor ( (y0   - cs^.lat) / resolution - adjust ) :: Int
 
     resolution = resolutionForZoom tm z
 
-    y0 = tm^.extent.north
-    x0 = tm^.extent.west
+    y0 = tm^.bounds.north
+    x0 = tm^.bounds.west
 
     adjust = case pol of
       LowerTile -> 0.5
       HigherTile -> 0
 
 
-toTileIndexWith :: TileMatrix crs -> Zoom -> Coords crs -> TileIndex
+toTileIndexWith :: TileMatrix -> Zoom -> LatLng -> TileIndex
 toTileIndexWith = toTileIndexWithPolicy HigherTile
 
 instance HasTileIndex SphericalMercator where
-  fromTileIndex = transform  . (fromTileIndex :: TileIndex -> Coords WGS84)
-  toTileIndex z = toTileIndex z   . (transform :: Coords SphericalMercator -> Coords WGS84)
+  fromTileIndex = transform  . (fromTileIndex :: TileIndex -> Tagged WGS84 LatLng)
+  toTileIndex z = toTileIndex z   . (transform :: Tagged SphericalMercator LatLng-> Tagged WGS84 LatLng)
 
 pow2 :: Int -> Double
 pow2 = fromIntegral . (bit :: Int -> Int)
 
 
 
-tileBoundingBox :: HasTileIndex crs => TileIndex -> BoundingBox crs
-tileBoundingBox t@(TileIndex z x y) =
-  BoundingBox {
-    boundingBoxWestNorth = fromTileIndex t
-  , boundingBoxEastSouth = fromTileIndex (TileIndex z (x+1) (y+1))
-  }
+tileIndexBounds :: HasTileIndex crs => TileIndex -> Tagged crs Bounds
+tileIndexBounds t@TileIndex{z,x,y} = Tagged emptyBounds
+  & northWest .~ fromTileIndex t
+  & southWest .~ fromTileIndex (TileIndex z (x+1) (y+1))
 
-tileBoundingBoxWith :: TileMatrix crs -> TileIndex -> BoundingBox crs
-tileBoundingBoxWith tm t@(TileIndex z x y) =
-  BoundingBox {
-    boundingBoxWestNorth = fromTileIndexWith tm t
-  , boundingBoxEastSouth = fromTileIndexWith tm (TileIndex z (x+1) (y+1))
-  }
-
-bboxWidth :: (Num a, HasEast o a, HasWest o a) => o -> a
-bboxWidth bb = bb^.east - bb^.west
-{-# INLINE bboxWidth #-}
-
-bboxHeight :: (Num a, HasNorth o a, HasSouth o a) => o -> a
-bboxHeight bb = bb^.north - bb^.south
-{-# INLINE bboxHeight #-}
+tileIndexBoundsWith :: TileMatrix -> TileIndex -> Bounds
+tileIndexBoundsWith tm t@TileIndex{z,x,y} = emptyBounds
+  & northWest .~ fromTileIndexWith tm t
+  & southWest .~ fromTileIndexWith tm (TileIndex z (x+1) (y+1))

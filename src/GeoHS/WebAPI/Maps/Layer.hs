@@ -146,10 +146,9 @@ mapnikLayer title_ style_ attribution_ = Layer
   , layerAttribution = attribution_
   , layerExtraAttributions = []
   , layerBufferSize = Nothing
-  , layerBounds = Bounds
-    { boundsSouthWest = LatLng (-90) (-180)
-    , boundsNorthEast = LatLng 90 180
-    }
+  , layerBounds = emptyBounds
+     & southWest .~ latLng (-90) (-180)
+     & northEast .~ latLng 90 180
   , layerEpsg = fromJust (mkEPSG 4326)
   , layerQueryable = False
   , layerOpacity   = 1

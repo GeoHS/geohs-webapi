@@ -5,6 +5,7 @@ module GeoHS.WebAPI.Maps.LayerSpec (main, spec) where
 
 import GeoHS.WebAPI
 
+import Control.Lens
 import Data.Aeson
 import Data.Monoid
 import Data.Swagger
@@ -50,7 +51,14 @@ instance Arbitrary WmsLayer where
   arbitrary = WmsLayer <$> arbitrary <*> arbitrary
 
 instance Arbitrary Bounds where
-  arbitrary = Bounds <$> arbitrary <*> arbitrary
+  arbitrary = do
+    sw <- LatLng <$> arbitrary <*> arbitrary
+    w <- getPositive <$> arbitrary
+    h <- getPositive <$> arbitrary
+    pure $ emptyBounds
+      & southWest .~ sw
+      & width     .~ w
+      & height    .~ h
 
 instance Arbitrary Url where
   arbitrary = Url . ("http://"<>) <$> arbitrary
