@@ -24,14 +24,19 @@ import           GeoHS.WebAPI.Auth       as Export
 import           GeoHS.WebAPI.Profile    as Export
 
 import           Control.Lens hiding ((.=))
+import           Data.Attoparsec.ByteString (parseOnly)
 import           Data.Swagger as Swagger hiding (Header)
 import           Data.Monoid ((<>))
 import           Data.Proxy
 import           Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import           Servant.API hiding (BasicAuth)
 import           Servant.Swagger
 import           Servant.Foreign hiding (BasicAuth)
 import           Servant.Auth
+import           SpatialReference
+import           Network.Wai.Ogc.Common (crsParser, renderCrs)
 
 type Authenticated a = Auth '[JWT, BasicAuth] a 
 
@@ -75,11 +80,19 @@ type CrudObjectApi ob
 type LayerAPI
     = CrudApi "name" LayerName Layer
  :<|> Capture "name" LayerName
-      :> "tile" :> GetTile '[PNG8 'Nothing, WEBP 'Nothing, JSON] Tile
+      :> "tile"
+      :> GetTile '[PNG8 'Nothing, WEBP 'Nothing, JSON] Tile
  :<|> Capture "name" LayerName
-      :> "wmts" :> WmtsApi '[PNG8 'Nothing, WEBP 'Nothing, JSON] Tile
+      :> "tms"
+      :> Capture "srs" Crs
+      :> GetTile '[PNG8 'Nothing, WEBP 'Nothing, JSON] Tile
+ :<|> Capture "name" LayerName
+      :> "wmts"
+      :> Capture "srs" Crs
+      :> WmtsApi '[PNG8 'Nothing, WEBP 'Nothing, JSON] Tile
  :<|> Capture "name" LayerName
       :> "wms"
+      :> QueryParam "SRS" Crs
       :> QueryParam "BBOX" Bounds
       :> QueryParam "WIDTH" Int
       :> QueryParam "HEIGHT" Int
@@ -141,3 +154,15 @@ instance HasSwagger sub => HasSwagger (Authenticated a :> sub) where
       authHeaderSchema = toParamSchema (Proxy :: Proxy Text)
         & pattern ?~ "(Bearer (.+)|.+)"
 
+
+instance ToParamSchema Crs where
+  toParamSchema _ = toParamSchema (Proxy :: Proxy Text)
+    & pattern ?~ "(EPSG:\\d+)"
+
+instance FromHttpApiData Crs where
+  parseUrlPiece = either (Left . T.pack) Right . parseOnly crsParser . T.encodeUtf8
+  parseHeader = either (Left . T.pack) Right . parseOnly crsParser
+
+instance ToHttpApiData Crs where
+  toUrlPiece = T.decodeUtf8 . renderCrs
+  toHeader = renderCrs

@@ -3,7 +3,7 @@
 , optparse-applicative, purescript-bridge, QuickCheck
 , quickcheck-instances, servant, servant-auth, servant-auth-server
 , servant-foreign, servant-purescript, servant-swagger
-, spatial-reference, stdenv, swagger2, text
+, spatial-reference, stdenv, swagger2, text, wai-ogc, attoparsec
 }:
 mkDerivation {
   pname = "geohs-webapi";
@@ -16,7 +16,7 @@ mkDerivation {
     aeson base base64-bytestring bytestring geohs-geometry
     http-api-data lens neat-interpolation purescript-bridge servant
     servant-auth servant-auth-server servant-foreign servant-purescript
-    servant-swagger spatial-reference swagger2 text
+    servant-swagger spatial-reference swagger2 text wai-ogc attoparsec
   ];
   executableHaskellDepends = [
     base lens optparse-applicative purescript-bridge servant-purescript
