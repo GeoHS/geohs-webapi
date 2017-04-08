@@ -13,7 +13,9 @@ module GeoHS.WebAPI.Auth where
 
 import           GeoHS.WebAPI.Profile (UserName)
 
-import           Data.Aeson     (FromJSON, ToJSON)
+import qualified Crypto.JOSE    as Jose
+import qualified Crypto.JWT     as Jose
+import           Data.Aeson     (FromJSON, ToJSON, toJSON)
 import           Data.Swagger   (ToSchema, ToParamSchema)
 import           Data.Text      (Text)
 import           Data.Proxy     (Proxy(..))
@@ -33,7 +35,10 @@ data Credentials = Credentials
 data Token = Token
   { tokenOwner  :: !UserName
   } deriving (Show, Generic, Eq, FromJSON, ToJSON, ToSchema)
-instance ToJWT Token
+instance ToJWT Token where
+  encodeJWT a = Jose.addClaim "dat" (toJSON a)
+              . Jose.addClaim "role" (toJSON (tokenOwner a))
+              $ Jose.emptyClaimsSet
 instance FromJWT Token
 
 
