@@ -28,22 +28,22 @@ library
 
     , GeoHS.WebAPI.GeneratePS
   build-depends:
-      base >=4.9 && <4.10
+      base >=4.9 && <4.11
     , lens >=4.14 && <4.16
     , purescript-bridge >= 0.10.1 && <0.11
     , servant-purescript >=0.6 && <0.7
     , spatial-reference >=0.1 && <0.2
-    , aeson >=0.11 && <1.2
+    , aeson >=0.11 && <1.3
     , swagger2 >=2.1 && <2.2
     , text >=1.2 && <1.3
-    , servant >=0.9 && <0.10
+    , servant >=0.9 && <0.12
     , servant-auth-server >=0.2 && <0.3
     , neat-interpolation >=0.3 && <0.4
     , bytestring >=0.10 && <0.11
     , http-api-data >=0.3 && <0.4
     , base64-bytestring >=1.0 && <1.1
     , servant-swagger >= 1.1.2 && < 1.2
-    , servant-foreign >= 0.9.1.1 && < 0.10
+    , servant-foreign >= 0.9.1.1 && < 0.12
     , servant-auth >= 0.2.1.0 && < 0.3
     , jose         >= 0.5     && < 0.6
     , geohs-geometry
@@ -74,8 +74,8 @@ test-suite spec
   type:             exitcode-stdio-1.0
   build-depends:
       base
-    , hspec >=2.2 && <2.3
-    , QuickCheck >=2.8 && <2.9
+    , hspec >=2.2 && <2.5
+    , QuickCheck >=2.8 && <2.10
     , geohs-webapi
     , swagger2
     , aeson

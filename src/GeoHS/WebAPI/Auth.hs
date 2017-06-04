@@ -13,7 +13,6 @@ module GeoHS.WebAPI.Auth where
 
 import           GeoHS.WebAPI.Profile (UserName)
 
-import qualified Crypto.JOSE    as Jose
 import qualified Crypto.JWT     as Jose
 import           Data.Aeson     (FromJSON, ToJSON, toJSON)
 import           Data.Swagger   (ToSchema, ToParamSchema)
@@ -67,7 +66,9 @@ data ResourcePermission ob
   | Put ob
   | Delete ob
   | List   ob
-  deriving (Generic, Read, Show, Eq, Ord, FromJSON, ToJSON, ToSchema)
+  deriving (Generic, Read, Show, Eq, Ord, FromJSON, ToJSON)
+
+instance ToSchema ob => ToSchema (ResourcePermission ob)
 instance (ToJSON ob, ToJWT ob) => ToJWT (ResourcePermission ob)
 instance (FromJSON ob, FromJWT ob) => FromJWT (ResourcePermission ob)
 
