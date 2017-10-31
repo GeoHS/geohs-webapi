@@ -168,9 +168,9 @@ pow2 = fromIntegral . (bit :: Int -> Int)
 tileIndexBounds :: HasTileIndex crs => TileIndex -> Tagged crs Bounds
 tileIndexBounds t@TileIndex{z,x,y} = Tagged emptyBounds
   & northWest .~ fromTileIndex t
-  & southWest .~ fromTileIndex (TileIndex z (x+1) (y+1))
+  & southEast .~ fromTileIndex (TileIndex z (x+1) (y+1))
 
 tileIndexBoundsWith :: TileMatrix -> TileIndex -> Bounds
 tileIndexBoundsWith tm t@TileIndex{z,x,y} = emptyBounds
   & northWest .~ fromTileIndexWith tm t
-  & southWest .~ fromTileIndexWith tm (TileIndex z (x+1) (y+1))
+  & southEast .~ fromTileIndexWith tm (TileIndex z (x+1) (y+1))
