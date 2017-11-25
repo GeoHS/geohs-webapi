@@ -30,7 +30,7 @@ library
   build-depends:
       base >=4.9 && <4.11
     , lens >=4.14 && <4.16
-    , purescript-bridge >= 0.10.1 && <0.11
+    , purescript-bridge >= 0.10.1 && <0.12
     , servant-purescript >=0.6 && <0.7
     , spatial-reference >=0.1 && <0.2
     , aeson >=0.11 && <1.3
@@ -46,6 +46,7 @@ library
     , servant-foreign >= 0.9.1.1 && < 0.12
     , servant-auth >= 0.2.1.0 && < 0.3
     , jose         >= 0.5     && < 0.6
+    , hs-mapnik
     , geohs-geometry
     , wai-ogc
     , attoparsec

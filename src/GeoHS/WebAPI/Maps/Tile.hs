@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -13,6 +14,7 @@ module GeoHS.WebAPI.Maps.Tile where
 import GeoHS.Geometry
 import Data.Aeson
 import GHC.Generics (Generic)
+import Mapnik
 import Data.ByteString.Char8 (ByteString)
 import Data.Swagger
 import qualified Data.Text.Encoding as T
@@ -22,36 +24,19 @@ import Control.Lens hiding (Zoom, transform)
 
 type Zoom = Int
 
-newtype RGBA8 = RGBA8 ByteString
-  deriving (Eq, Ord, Show, Generic)
-
-
-instance ToSchema RGBA8 where
-  declareNamedSchema _ = return $ NamedSchema (Just "RGBA8") binarySchema
-
-unRGBA :: RGBA8 -> ByteString
-unRGBA (RGBA8 s) = s
-{-# INLINE unRGBA #-}
-
-instance ToJSON RGBA8 where
-  toJSON = toJSON . T.decodeUtf8 . B64.encode . unRGBA
-
-instance FromJSON RGBA8 where
-  parseJSON = withText "RGBA8 must be a base64 encoded string" $
-                either fail (pure . RGBA8) . B64.decode . T.encodeUtf8
-
 -- http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 data TileIndex = TileIndex {z :: !Zoom, x :: !Int, y :: !Int }
   deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic, ToSchema)
 
-type Proj4String = String
+-- TODO: Move to hs-mapnik?
+deriving instance ToSchema Box
+deriving instance ToSchema ImageRgba8
 
 data Tile = Tile
-  { tileIndex    :: Maybe TileIndex
-  , tileProj4    :: Proj4String
-  , tileBounds   :: Bounds
-  , tileSize     :: (Int,Int)
-  , tileRgbaData :: RGBA8
+  { tileIndex  :: Maybe TileIndex
+  , tileSrs    :: Proj4
+  , tileExtent :: Box
+  , tileImage  :: ImageRgba8
   } deriving (Generic, ToJSON, FromJSON, ToSchema)
 makeFields ''Tile
 
@@ -61,17 +46,17 @@ instance HasHeight Tile Int where height = size._2
 data TileMatrix = TileMatrix
   { tileMatrixTileWidth  :: !Int
   , tileMatrixTileHeight :: !Int
-  , tileMatrixBounds     :: !Bounds
+  , tileMatrixExtent     :: !Box
   }
   deriving Show
 makeFields ''TileMatrix
 
-instance HasBounds (Tagged crs TileMatrix) (Tagged crs Bounds) where
-  bounds = taggedLens' bounds
-  {-# INLINE bounds #-}
+instance HasExtent (Tagged crs TileMatrix) (Tagged crs Box) where
+  extent = taggedLens' extent
+  {-# INLINE extent #-}
 
 tileMatrix :: Int -> TileMatrix
-tileMatrix sz = TileMatrix sz sz emptyBounds
+tileMatrix sz = TileMatrix sz sz (Box 0 0 0 0)
 
 
 class HasTileIndex crs where
